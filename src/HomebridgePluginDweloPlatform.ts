@@ -14,7 +14,7 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
   ) {
     this.dweloAPI = new DweloAPI(config.token, config.gatewayId);
 
-    this.log.info(`Finished initializing platform: ${this.config.name} with config ${JSON.stringify(config)}`);
+    this.log.info(`Finished initializing platform: ${this.config.name}`);
   }
 
   accessories(callback: (foundAccessories: AccessoryPlugin[]) => void): void {
