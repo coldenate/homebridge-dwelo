@@ -3,7 +3,13 @@ import { API, StaticPlatformPlugin, PlatformConfig, AccessoryPlugin, Logging } f
 import { DweloAPI } from './DweloAPI.js';
 import { DweloLockAccessory } from './DweloLockAccessory.js';
 import { DweloSwitchAccessory } from './DweloSwitchAccessory.js';
-import { DweloThermostatAccessory, DweloThermostatOptions } from './DweloThermostatAccessory.js';
+import {
+  buildSensorMap,
+  DweloThermostatAccessory,
+  DweloThermostatOptions,
+  hasNumericSensorValue,
+  SENSOR_ALIASES,
+} from './DweloThermostatAccessory.js';
 
 export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
   private readonly dweloAPI: DweloAPI;
@@ -19,9 +25,9 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
   }
 
   accessories(callback: (foundAccessories: AccessoryPlugin[]) => void): void {
-    this.dweloAPI.devices().then(devices => {
-      const accessories = devices
-        .map((d): AccessoryPlugin | null => {
+    this.dweloAPI.devices().then(async devices => {
+      const accessories = await Promise.all(devices
+        .map(async (d): Promise<AccessoryPlugin | null> => {
           switch (d.deviceType) {
           case 'switch':
             return new DweloSwitchAccessory(this.log, this.api, this.dweloAPI, d.givenName, d.uid);
@@ -35,7 +41,8 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
               d.givenName,
               d.uid,
             );
-          case 'thermostat':
+          case 'thermostat': {
+            const thermostatOptions = await this.thermostatOptions(d.uid);
             return new DweloThermostatAccessory(
               this.log,
               this.api,
@@ -43,25 +50,39 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
               d.givenName,
               d.uid,
               d.device_metadata ?? {},
-              this.thermostatOptions(),
+              thermostatOptions,
             );
+          }
           default:
             this.log.warn(`Support for Dwelo accessory type: ${d.deviceType} is not implemented`);
             return null;
           }
-        })
-        .filter((a): a is AccessoryPlugin => !!a);
+        }));
 
-      callback(accessories);
+      callback(accessories.filter((a): a is AccessoryPlugin => !!a));
     });
   }
 
-  private thermostatOptions(): DweloThermostatOptions {
+  private async thermostatOptions(thermostatID: number): Promise<DweloThermostatOptions> {
     return {
       displayUnits: this.config.thermostatDisplayUnits === 'fahrenheit' ? 'fahrenheit' : 'celsius',
-      exposeHumidity: this.config.exposeThermostatHumidity !== false,
+      exposeHumidity: await this.shouldExposeThermostatHumidity(thermostatID),
       exposeBattery: this.config.exposeThermostatBattery !== false,
       logSensorInventory: this.config.logThermostatSensorInventory === true,
     };
+  }
+
+  private async shouldExposeThermostatHumidity(thermostatID: number): Promise<boolean> {
+    if (this.config.exposeThermostatHumidity === false) {
+      return false;
+    }
+
+    try {
+      const sensors = buildSensorMap(await this.dweloAPI.sensors(thermostatID));
+      return hasNumericSensorValue(sensors, SENSOR_ALIASES.humidity);
+    } catch (error) {
+      this.log.warn(`Could not read thermostat ${thermostatID} sensors; humidity will not be exposed: ${error}`);
+      return false;
+    }
   }
 }

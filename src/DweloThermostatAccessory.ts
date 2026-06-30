@@ -37,7 +37,7 @@ interface SetpointProps {
   minStep: number;
 }
 
-const SENSOR_ALIASES = {
+export const SENSOR_ALIASES = {
   temperature: ['Temperature', 'temperature'],
   mode: ['ThermostatMode', 'mode'],
   operatingState: ['ThermostatOperatingState', 'state'],
@@ -52,7 +52,7 @@ function numberFromMetadata(value: unknown): number | undefined {
 }
 
 function parseNumber(value: string | undefined): number | undefined {
-  if (value === undefined) {
+  if (value === undefined || value.trim() === '') {
     return undefined;
   }
   const parsed = Number(value);
@@ -168,6 +168,15 @@ function clampTemperatureC(temperatureC: number, props: SetpointProps): number {
 
 function clampPercentage(value: number): number {
   return Math.min(Math.max(value, 0), 100);
+}
+
+export function hasNumericSensorValue(sensors: Map<string, string>, aliases: string[]): boolean {
+  return parseNumber(sensorValue(sensors, aliases)) !== undefined;
+}
+
+export function relativeHumidityFromSensorValue(value: string | undefined): number | undefined {
+  const humidity = parseNumber(value);
+  return humidity === undefined ? undefined : clampPercentage(Math.round(humidity));
 }
 
 export class DweloThermostatAccessory implements AccessoryPlugin {
@@ -329,8 +338,12 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
   }
 
   private async getCurrentRelativeHumidity() {
-    const humidity = parseNumber(await this.readSensorValue(SENSOR_ALIASES.humidity));
-    return clampPercentage(humidity ?? 0);
+    const humidity = relativeHumidityFromSensorValue(await this.readSensorValue(SENSOR_ALIASES.humidity));
+    if (humidity === undefined) {
+      this.log.debug(`Thermostat ${this.name} (${this.thermostatID}) did not report humidity`);
+      throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+    }
+    return humidity;
   }
 
   private async getBatteryLevel() {

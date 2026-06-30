@@ -6,6 +6,8 @@ import {
   clampThermostatSetpointF,
   cToF,
   fToC,
+  hasNumericSensorValue,
+  relativeHumidityFromSensorValue,
   thermostatAutoSetpointsF,
   sensorValue,
 } from '../dist/DweloThermostatAccessory.js';
@@ -23,6 +25,22 @@ test('reads thermostat sensor values using metadata and legacy sensor names', ()
 
   assert.equal(sensorValue(sensors, ['temperature', 'Temperature']), '72');
   assert.equal(sensorValue(sensors, ['Humidity', 'humidity']), '44');
+});
+
+test('only exposes thermostat humidity when Dwelo reports a numeric humidity sensor', () => {
+  assert.equal(hasNumericSensorValue(new Map(), ['Humidity', 'humidity']), false);
+  assert.equal(hasNumericSensorValue(new Map([['humidity', '']]), ['Humidity', 'humidity']), false);
+  assert.equal(hasNumericSensorValue(new Map([['humidity', 'unknown']]), ['Humidity', 'humidity']), false);
+  assert.equal(hasNumericSensorValue(new Map([['humidity', '0']]), ['Humidity', 'humidity']), true);
+  assert.equal(hasNumericSensorValue(new Map([['humidity', '44']]), ['Humidity', 'humidity']), true);
+});
+
+test('does not convert missing thermostat humidity into zero percent', () => {
+  assert.equal(relativeHumidityFromSensorValue(undefined), undefined);
+  assert.equal(relativeHumidityFromSensorValue('unknown'), undefined);
+  assert.equal(relativeHumidityFromSensorValue('0'), 0);
+  assert.equal(relativeHumidityFromSensorValue('44.6'), 45);
+  assert.equal(relativeHumidityFromSensorValue('130'), 100);
 });
 
 test('clamps outgoing setpoints to thermostat metadata limits', () => {
