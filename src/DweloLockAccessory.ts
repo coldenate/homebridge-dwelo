@@ -122,7 +122,7 @@ export class DweloLockAccessory implements AccessoryPlugin {
       const desired = target === this.api.hap.Characteristic.LockTargetState.SECURED;
       await this.dweloAPI.toggleLock(desired, this.lockID);
     } catch (err) {
-      this.log.warn('Lock command failed:', err);
+      this.log.warn(`Lock command failed: ${this.errorMessage(err)}`);
       this.inFlight = false;
       await this.reconcileTargetWithCurrent();
     }
@@ -160,8 +160,8 @@ export class DweloLockAccessory implements AccessoryPlugin {
           this.log.info('Lock toggle completed');
         }
       }
-    } catch (e) {
-      this.log.warn(`Failed to fetch status of lock ${this.name}`, e);
+    } catch (err) {
+      this.log.warn(`Failed to fetch status of lock ${this.name}: ${this.errorMessage(err)}`);
     }
   }
 
@@ -177,8 +177,8 @@ export class DweloLockAccessory implements AccessoryPlugin {
       this.log.info(`Auto-lock timer elapsed (${Math.round(this.autoLockMinutes)}m). Relocking.`);
       try {
         await this.setTargetLockState(this.api.hap.Characteristic.LockTargetState.SECURED);
-      } catch (e) {
-        this.log.warn('Auto-lock attempt failed:', e);
+      } catch (err) {
+        this.log.warn(`Auto-lock attempt failed: ${this.errorMessage(err)}`);
       }
     }, this.autoLockMinutes * 60 * 1000);
     this.log.info(`Auto-lock scheduled in ${Math.round(this.autoLockMinutes)} minute(s).`);
@@ -208,5 +208,15 @@ export class DweloLockAccessory implements AccessoryPlugin {
     this.desiredTarget =
       currentState === this.api.hap.Characteristic.LockCurrentState.SECURED ? T.SECURED : T.UNSECURED;
     this.lockService.getCharacteristic(T).updateValue(this.desiredTarget);
+  }
+
+  private errorMessage(err: unknown): string {
+    if (err instanceof Error) {
+      return err.message;
+    }
+    if (typeof err === 'string') {
+      return err;
+    }
+    return 'Unknown error';
   }
 }
