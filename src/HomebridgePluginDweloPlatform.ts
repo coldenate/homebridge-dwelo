@@ -3,6 +3,7 @@ import { API, StaticPlatformPlugin, PlatformConfig, AccessoryPlugin, Logging } f
 import { DweloAPI } from './DweloAPI.js';
 import { DweloLockAccessory } from './DweloLockAccessory.js';
 import { DweloSwitchAccessory } from './DweloSwitchAccessory.js';
+import { DweloThermostatAccessory, DweloThermostatOptions } from './DweloThermostatAccessory.js';
 
 export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
   private readonly dweloAPI: DweloAPI;
@@ -34,6 +35,16 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
               d.givenName,
               d.uid,
             );
+          case 'thermostat':
+            return new DweloThermostatAccessory(
+              this.log,
+              this.api,
+              this.dweloAPI,
+              d.givenName,
+              d.uid,
+              d.device_metadata ?? {},
+              this.thermostatOptions(),
+            );
           default:
             this.log.warn(`Support for Dwelo accessory type: ${d.deviceType} is not implemented`);
             return null;
@@ -43,5 +54,14 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
 
       callback(accessories);
     });
+  }
+
+  private thermostatOptions(): DweloThermostatOptions {
+    return {
+      displayUnits: this.config.thermostatDisplayUnits === 'fahrenheit' ? 'fahrenheit' : 'celsius',
+      exposeHumidity: this.config.exposeThermostatHumidity !== false,
+      exposeBattery: this.config.exposeThermostatBattery !== false,
+      logSensorInventory: this.config.logThermostatSensorInventory === true,
+    };
   }
 }

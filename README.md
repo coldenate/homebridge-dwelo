@@ -173,5 +173,11 @@ This plugin supports an auto-lock option for Dwelo locks:
 
 - `autoLockMinutes` (number): Minutes to wait after a lock becomes unlocked before automatically relocking. Default is `3`. Set to `0` to disable.
 
-Ensure the `pluginAlias` in `config.schema.json` matches `PLATFORM_NAME` in `src/settings.ts`.
+This plugin also supports Dwelo thermostats discovered from your configured gateway:
 
+- `thermostatDisplayUnits` (`"celsius"` or `"fahrenheit"`): HomeKit display unit for thermostats. Default is `"celsius"`.
+- `exposeThermostatHumidity` (boolean): Expose thermostat humidity as a HomeKit humidity sensor. Default is `true`.
+- `exposeThermostatBattery` (boolean): Expose thermostat battery state as a HomeKit battery service. Default is `true`.
+- `logThermostatSensorInventory` (boolean): Log thermostat sensor names and sanitized values for debugging. Default is `false`.
+
+Ensure the `pluginAlias` in `config.schema.json` matches `PLATFORM_NAME` in `src/settings.ts`.

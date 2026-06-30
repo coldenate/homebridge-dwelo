@@ -13,8 +13,8 @@ interface ListResponse {
 export interface Device {
   addressId: number;
   dateRegistered: string;
-  deviceType: 'lock' | 'switch';
-  device_metadata: Record<string, string>;
+  deviceType: 'lock' | 'switch' | 'thermostat';
+  device_metadata: Record<string, unknown> | null;
   gatewayId: string;
   givenName: string;
   isActive: boolean;
@@ -76,6 +76,27 @@ export class DweloAPI {
     await this.request(`/v3/device/${id}/command/`, {
       method: 'POST',
       data: { 'command': locked ? 'lock' : 'unlock' },
+    });
+  }
+
+  public async setThermostatMode(mode: 'off' | 'heat' | 'cool' | 'auto', id: number) {
+    await this.request(`/v3/device/${id}/command/`, {
+      method: 'POST',
+      data: { command: mode },
+    });
+  }
+
+  public async setThermostatHeatSetpointF(temperatureF: number, id: number) {
+    await this.request(`/v3/device/${id}/command/`, {
+      method: 'POST',
+      data: { command: 'heat', commandValue: temperatureF },
+    });
+  }
+
+  public async setThermostatCoolSetpointF(temperatureF: number, id: number) {
+    await this.request(`/v3/device/${id}/command/`, {
+      method: 'POST',
+      data: { command: 'cool', commandValue: temperatureF },
     });
   }
 

@@ -27,6 +27,41 @@
         "type": "number",
         "default": 3,
         "minimum": 0
+      },
+      "thermostatDisplayUnits": {
+        "title": "Thermostat display units",
+        "type": "string",
+        "default": "celsius",
+        "oneOf": [
+          {
+            "title": "Celsius",
+            "enum": [
+              "celsius"
+            ]
+          },
+          {
+            "title": "Fahrenheit",
+            "enum": [
+              "fahrenheit"
+            ]
+          }
+        ]
+      },
+      "exposeThermostatHumidity": {
+        "title": "Expose thermostat humidity",
+        "type": "boolean",
+        "default": true
+      },
+      "exposeThermostatBattery": {
+        "title": "Expose thermostat battery",
+        "type": "boolean",
+        "default": true
+      },
+      "logThermostatSensorInventory": {
+        "title": "Log thermostat sensor inventory",
+        "description": "Debug option that logs thermostat sensor names and sanitized values without logging tokens or raw API responses.",
+        "type": "boolean",
+        "default": false
       }
     }
   }
