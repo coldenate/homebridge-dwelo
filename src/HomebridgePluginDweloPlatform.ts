@@ -36,7 +36,6 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
             );
           default:
             this.log.warn(`Support for Dwelo accessory type: ${d.deviceType} is not implemented`);
-            this.log.warn('%s', d);
             return null;
           }
         })
