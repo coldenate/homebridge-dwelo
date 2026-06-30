@@ -24,7 +24,7 @@ Click the link below to create a new GitHub Repository using this template, or c
 
 ## Setup Development Environment
 
-To develop Homebridge plugins you must have Node.js 12 or later installed, and a modern code editor such as [VS Code](https://code.visualstudio.com/). This plugin template uses [TypeScript](https://www.typescriptlang.org/) to make development easier and comes with pre-configured settings for [VS Code](https://code.visualstudio.com/) and ESLint. If you are using VS Code install these extensions:
+To develop this Homebridge plugin you must have Node.js 22.13 or later on the Node 22 line, or Node.js 24, plus Homebridge 2.1 or later. This plugin uses [TypeScript](https://www.typescriptlang.org/) and ESLint. If you are using VS Code install these extensions:
 
 * [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
 
