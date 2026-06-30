@@ -1,6 +1,9 @@
 
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 
+const REQUEST_TIMEOUT_MS = 10000;
+const MAX_RESPONSE_BYTES = 1024 * 1024;
+const MAX_REQUEST_BYTES = 64 * 1024;
 
 interface ListResponse {
   resultsCount: number;
@@ -85,6 +88,9 @@ export class DweloAPI {
       method: method ?? 'GET',
       params,
       data,
+      timeout: REQUEST_TIMEOUT_MS,
+      maxContentLength: MAX_RESPONSE_BYTES,
+      maxBodyLength: MAX_REQUEST_BYTES,
       headers: {
         ...headers,
         Authorization: `Token ${this.token} `,
