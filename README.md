@@ -176,6 +176,7 @@ Push updates are enabled by default so Apple Home receives state changes after e
 - `autoLockMinutes` (number): Minutes to wait after a lock becomes unlocked before automatically relocking. Default is `3`. Set to `0` to disable.
 - `enablePushUpdates` (boolean): Poll Dwelo in the background and push changed states to Apple Home. Default is `true`.
 - `statePollMs` (number): Shared background polling interval for push updates, in milliseconds. Default is `60000`; values below `10000` are raised to `10000`.
+<!-- TODO: Clarify that category opt-outs suppress HomeKit updates; only disabling all push updates reduces gateway polling. -->
 - `pushDeviceTypes` (array): Device categories that receive push-style HomeKit updates. Default is `["lock", "switch", "thermostat"]`. Remove categories to reduce or disable background polling.
 - `onGetStrategy` (`"cached-first"`, `"always-live"`, or `"cache-only"`): Advanced HomeKit read behavior. Default is `"cached-first"`, which returns recent cached state and fetches Dwelo only when needed. Use `"always-live"` to fetch Dwelo on every HomeKit read, or `"cache-only"` to rely only on background push polling.
 - `lockPollMs` (number): Deprecated backwards-compatible alias for `statePollMs` when `statePollMs` is not set.

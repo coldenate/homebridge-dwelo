@@ -138,9 +138,8 @@ test('gateway poll updates every device in one request and preserves state after
 });
 
 test('partial snapshots retain previously known sensor fields', async () => {
-  const state = new DweloDeviceState(1, reader());
+  const state = new DweloDeviceState(1, reader([sensor('state', 'cooling')]), -1);
   state.updateSensors([sensor('temperature', '72'), sensor('state', 'idle')]);
-  state.updateSensors([sensor('state', 'cooling')]);
 
   assert.deepEqual(await state.readSensors(), [sensor('temperature', '72'), sensor('state', 'cooling')]);
 });

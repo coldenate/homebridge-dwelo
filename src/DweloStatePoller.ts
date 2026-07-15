@@ -98,7 +98,7 @@ export class DweloDeviceState {
     this.pendingRead ??= this.sensorReader.sensors(this.deviceId)
       .then(sensors => {
         this.updateSensors(sensors);
-        return sensors;
+        return this.sensors!;
       })
       .finally(() => {
         this.pendingRead = undefined;

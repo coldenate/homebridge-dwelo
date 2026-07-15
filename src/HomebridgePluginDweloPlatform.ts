@@ -108,7 +108,7 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
     }
 
     try {
-      const sensors = buildSensorMap(await this.deviceState(thermostatID, 'thermostat').readSensors());
+      const sensors = buildSensorMap(await this.dweloAPI.sensors(thermostatID));
       return hasNumericSensorValue(sensors, SENSOR_ALIASES.humidity);
     } catch (error) {
       this.log.warn(`Could not read thermostat ${thermostatID} sensors; humidity will not be exposed: ${error}`);
