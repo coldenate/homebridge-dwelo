@@ -7,8 +7,10 @@ import {
 } from 'homebridge';
 
 import { DweloAPI, Sensor } from './DweloAPI.js';
+import { DweloDeviceState } from './DweloStatePoller.js';
 
 type ThermostatMode = 'off' | 'heat' | 'cool' | 'auto';
+type ThermostatOperatingState = 'off' | 'heat' | 'cool';
 type SetpointType = 'heat' | 'cool';
 
 export interface DweloThermostatOptions {
@@ -179,6 +181,25 @@ export function relativeHumidityFromSensorValue(value: string | undefined): numb
   return humidity === undefined ? undefined : clampPercentage(Math.round(humidity));
 }
 
+export function thermostatOperatingStateFromSensors(sensors: Map<string, string>): ThermostatOperatingState | undefined {
+  const state = sensorValue(sensors, SENSOR_ALIASES.operatingState);
+  if (state === undefined) {
+    return undefined;
+  }
+  switch (normalizeText(state)) {
+  case 'heat':
+  case 'pendingheat':
+  case 'heating':
+    return 'heat';
+  case 'cool':
+  case 'pendingcool':
+  case 'cooling':
+    return 'cool';
+  default:
+    return 'off';
+  }
+}
+
 export class DweloThermostatAccessory implements AccessoryPlugin {
   private readonly thermostatService: Service;
   private readonly humidityService?: Service;
@@ -192,6 +213,7 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
     private readonly log: Logging,
     private readonly api: API,
     private readonly dweloAPI: DweloAPI,
+    private readonly sensorState: DweloDeviceState,
     public readonly name: string,
     private readonly thermostatID: number,
     deviceMetadata: Record<string, unknown>,
@@ -242,6 +264,8 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
         .onGet(this.getStatusLowBattery.bind(this));
     }
 
+    this.sensorState.onUpdate(sensors => this.updateCharacteristics(buildSensorMap(sensors)));
+
     log.info(`Dwelo Thermostat '${name}' created!`);
   }
 
@@ -258,21 +282,9 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
   }
 
   private async getCurrentHeatingCoolingState() {
-    const state = await this.readSensorValue(SENSOR_ALIASES.operatingState);
-    const C = this.api.hap.Characteristic.CurrentHeatingCoolingState;
-
-    switch (normalizeText(state)) {
-    case 'heat':
-    case 'pendingheat':
-    case 'heating':
-      return C.HEAT;
-    case 'cool':
-    case 'pendingcool':
-    case 'cooling':
-      return C.COOL;
-    default:
-      return C.OFF;
-    }
+    const sensors = await this.readSensors();
+    return this.currentHeatingCoolingStateFromSensors(sensors)
+      ?? this.api.hap.Characteristic.CurrentHeatingCoolingState.OFF;
   }
 
   private async getTargetHeatingCoolingState() {
@@ -284,15 +296,16 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
   }
 
   private async getCurrentTemperature() {
-    return this.temperatureCFromSensor(SENSOR_ALIASES.temperature, fToC(70));
+    return this.temperatureCFromSensorMap(await this.readSensors(), SENSOR_ALIASES.temperature, fToC(70));
   }
 
   private async getTargetTemperature() {
-    const mode = await this.readSensorValue(SENSOR_ALIASES.mode);
+    const sensors = await this.readSensors();
+    const mode = sensorValue(sensors, SENSOR_ALIASES.mode);
     if (normalizeText(mode) === 'cool') {
-      return this.temperatureCFromSensor(SENSOR_ALIASES.coolSetpoint, this.targetTemperatureProps.minValue, this.targetTemperatureProps);
+      return this.temperatureCFromSensorMap(sensors, SENSOR_ALIASES.coolSetpoint, this.targetTemperatureProps.minValue, this.targetTemperatureProps);
     }
-    return this.temperatureCFromSensor(SENSOR_ALIASES.heatSetpoint, this.targetTemperatureProps.minValue, this.targetTemperatureProps);
+    return this.temperatureCFromSensorMap(sensors, SENSOR_ALIASES.heatSetpoint, this.targetTemperatureProps.minValue, this.targetTemperatureProps);
   }
 
   private async setTargetTemperature(value: CharacteristicValue) {
@@ -313,7 +326,12 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
   }
 
   private async getHeatingThresholdTemperature() {
-    return this.temperatureCFromSensor(SENSOR_ALIASES.heatSetpoint, this.heatSetpointProps.minValue, this.heatSetpointProps);
+    return this.temperatureCFromSensorMap(
+      await this.readSensors(),
+      SENSOR_ALIASES.heatSetpoint,
+      this.heatSetpointProps.minValue,
+      this.heatSetpointProps,
+    );
   }
 
   private async setHeatingThresholdTemperature(value: CharacteristicValue) {
@@ -321,7 +339,12 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
   }
 
   private async getCoolingThresholdTemperature() {
-    return this.temperatureCFromSensor(SENSOR_ALIASES.coolSetpoint, this.coolSetpointProps.minValue, this.coolSetpointProps);
+    return this.temperatureCFromSensorMap(
+      await this.readSensors(),
+      SENSOR_ALIASES.coolSetpoint,
+      this.coolSetpointProps.minValue,
+      this.coolSetpointProps,
+    );
   }
 
   private async setCoolingThresholdTemperature(value: CharacteristicValue) {
@@ -373,8 +396,8 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
     await this.dweloAPI.setThermostatCoolSetpointF(setpoints.coolSetpointF, this.thermostatID);
   }
 
-  private async temperatureCFromSensor(aliases: string[], fallback: number, props?: SetpointProps) {
-    const temperatureF = parseNumber(await this.readSensorValue(aliases));
+  private temperatureCFromSensorMap(sensors: Map<string, string>, aliases: string[], fallback: number, props?: SetpointProps) {
+    const temperatureF = parseNumber(sensorValue(sensors, aliases));
     const temperatureC = temperatureF === undefined ? fallback : fToC(temperatureF);
     return props ? clampTemperatureC(temperatureC, props) : temperatureC;
   }
@@ -385,7 +408,7 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
   }
 
   private async readSensors() {
-    const sensors = await this.dweloAPI.sensors(this.thermostatID);
+    const sensors = await this.sensorState.readSensors();
     if (this.options.logSensorInventory) {
       this.log.debug(
         `Thermostat ${this.name} (${this.thermostatID}) sensors: ${
@@ -394,6 +417,108 @@ export class DweloThermostatAccessory implements AccessoryPlugin {
       );
     }
     return buildSensorMap(sensors);
+  }
+
+  private updateCharacteristics(sensors: Map<string, string>) {
+    const operatingState = this.currentHeatingCoolingStateFromSensors(sensors);
+    if (operatingState !== undefined) {
+      this.thermostatService.updateCharacteristic(this.api.hap.Characteristic.CurrentHeatingCoolingState, operatingState);
+    }
+
+    const mode = sensorValue(sensors, SENSOR_ALIASES.mode);
+    if (mode !== undefined) {
+      this.thermostatService.updateCharacteristic(
+        this.api.hap.Characteristic.TargetHeatingCoolingState,
+        this.modeToHomeKit(mode),
+      );
+    }
+
+    this.updateTemperatureIfPresent(sensors, SENSOR_ALIASES.temperature, this.api.hap.Characteristic.CurrentTemperature);
+    const targetAliases = normalizeText(mode) === 'cool' ? SENSOR_ALIASES.coolSetpoint : SENSOR_ALIASES.heatSetpoint;
+    if (mode !== undefined && hasNumericSensorValue(sensors, targetAliases)) {
+      this.thermostatService.updateCharacteristic(
+        this.api.hap.Characteristic.TargetTemperature,
+        this.targetTemperatureFromSensors(sensors),
+      );
+    }
+    this.updateTemperatureIfPresent(
+      sensors,
+      SENSOR_ALIASES.heatSetpoint,
+      this.api.hap.Characteristic.HeatingThresholdTemperature,
+      this.heatSetpointProps,
+    );
+    this.updateTemperatureIfPresent(
+      sensors,
+      SENSOR_ALIASES.coolSetpoint,
+      this.api.hap.Characteristic.CoolingThresholdTemperature,
+      this.coolSetpointProps,
+    );
+
+    if (this.options.exposeHumidity) {
+      const humidity = relativeHumidityFromSensorValue(sensorValue(sensors, SENSOR_ALIASES.humidity));
+      if (humidity !== undefined) {
+        this.thermostatService.updateCharacteristic(this.api.hap.Characteristic.CurrentRelativeHumidity, humidity);
+        this.humidityService?.updateCharacteristic(this.api.hap.Characteristic.CurrentRelativeHumidity, humidity);
+      }
+    }
+
+    if (this.options.exposeBattery) {
+      const batteryLevel = parseNumber(sensorValue(sensors, SENSOR_ALIASES.battery));
+      if (batteryLevel !== undefined) {
+        const clampedBatteryLevel = clampPercentage(Math.round(batteryLevel));
+        const lowBattery = this.api.hap.Characteristic.StatusLowBattery;
+        this.batteryService?.updateCharacteristic(this.api.hap.Characteristic.BatteryLevel, clampedBatteryLevel);
+        this.batteryService?.updateCharacteristic(
+          this.api.hap.Characteristic.StatusLowBattery,
+          clampedBatteryLevel > 20 ? lowBattery.BATTERY_LEVEL_NORMAL : lowBattery.BATTERY_LEVEL_LOW,
+        );
+      }
+    }
+  }
+
+  private currentHeatingCoolingStateFromSensors(sensors: Map<string, string>) {
+    const C = this.api.hap.Characteristic.CurrentHeatingCoolingState;
+    switch (thermostatOperatingStateFromSensors(sensors)) {
+    case 'heat':
+      return C.HEAT;
+    case 'cool':
+      return C.COOL;
+    case undefined:
+      return undefined;
+    default:
+      return C.OFF;
+    }
+  }
+
+  private updateTemperatureIfPresent(
+    sensors: Map<string, string>,
+    aliases: string[],
+    characteristic: typeof this.api.hap.Characteristic.CurrentTemperature,
+    props?: SetpointProps,
+  ) {
+    if (hasNumericSensorValue(sensors, aliases)) {
+      this.thermostatService.updateCharacteristic(
+        characteristic,
+        this.temperatureCFromSensorMap(sensors, aliases, 0, props),
+      );
+    }
+  }
+
+  private targetTemperatureFromSensors(sensors: Map<string, string>) {
+    if (normalizeText(sensorValue(sensors, SENSOR_ALIASES.mode)) === 'cool') {
+      return this.temperatureCFromSensorMap(
+        sensors,
+        SENSOR_ALIASES.coolSetpoint,
+        this.targetTemperatureProps.minValue,
+        this.targetTemperatureProps,
+      );
+    }
+    return this.temperatureCFromSensorMap(
+      sensors,
+      SENSOR_ALIASES.heatSetpoint,
+      this.targetTemperatureProps.minValue,
+      this.targetTemperatureProps,
+    );
   }
 
   private modeToHomeKit(mode: string | undefined) {

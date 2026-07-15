@@ -16,8 +16,82 @@
         "type": "string",
         "required": true
       },
+      "enablePushUpdates": {
+        "title": "Enable push updates",
+        "description": "Poll Dwelo in the background and push changed states to Apple Home. Disable to use fetch-on-read behavior only.",
+        "type": "boolean",
+        "default": true
+      },
+      "statePollMs": {
+        "title": "How often to poll Dwelo for device state (milliseconds)",
+        "description": "Shared background polling interval for locks, switches, and thermostats. Values below 10000 are raised to 10000.",
+        "type": "number",
+        "default": 60000,
+        "minimum": 10000
+      },
+      "pushDeviceTypes": {
+        "title": "Device types with push updates",
+        "description": "Advanced troubleshooting option. Choose which Dwelo device categories use background polling to push state changes to Apple Home. Clear all categories to disable background polling.",
+        "type": "array",
+        "default": [
+          "lock",
+          "switch",
+          "thermostat"
+        ],
+        "items": {
+          "type": "string",
+          "oneOf": [
+            {
+              "title": "Locks",
+              "enum": [
+                "lock"
+              ]
+            },
+            {
+              "title": "Switches",
+              "enum": [
+                "switch"
+              ]
+            },
+            {
+              "title": "Thermostats",
+              "enum": [
+                "thermostat"
+              ]
+            }
+          ]
+        },
+        "uniqueItems": true
+      },
+      "onGetStrategy": {
+        "title": "HomeKit read strategy",
+        "description": "Advanced troubleshooting option. cached-first is recommended; always-live fetches Dwelo for every HomeKit read; cache-only never fetches during HomeKit reads.",
+        "type": "string",
+        "default": "cached-first",
+        "oneOf": [
+          {
+            "title": "Cached first",
+            "enum": [
+              "cached-first"
+            ]
+          },
+          {
+            "title": "Always live",
+            "enum": [
+              "always-live"
+            ]
+          },
+          {
+            "title": "Cache only",
+            "enum": [
+              "cache-only"
+            ]
+          }
+        ]
+      },
       "lockPollMs": {
-        "title": "How often to poll for the lock status (milliseconds)",
+        "title": "Deprecated: lock status poll interval (milliseconds)",
+        "description": "Deprecated. Use statePollMs instead. Used as a backwards-compatible alias when statePollMs is not set.",
         "type": "number",
         "default": 60000,
         "minimum": 1000

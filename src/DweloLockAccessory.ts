@@ -7,6 +7,7 @@ import {
 } from 'homebridge';
 
 import { DweloAPI, Sensor } from './DweloAPI.js';
+import { DweloDeviceState } from './DweloStatePoller.js';
 
 export class DweloLockAccessory implements AccessoryPlugin {
   private readonly lockService: Service;
@@ -14,7 +15,6 @@ export class DweloLockAccessory implements AccessoryPlugin {
 
   private inFlight = false;
   private desiredTarget: number | null = null;
-  private pollTimer?: NodeJS.Timeout;
   private watchdog?: NodeJS.Timeout;
   private autoLockTimer?: NodeJS.Timeout;
 
@@ -24,6 +24,7 @@ export class DweloLockAccessory implements AccessoryPlugin {
     private readonly lockPollMs: number,
     private readonly autoLockMinutes: number,
     private readonly dweloAPI: DweloAPI,
+    private readonly sensorState: DweloDeviceState,
     public readonly name: string,
     private readonly lockID: number) {
     this.lockService = new api.hap.Service.LockMechanism(name);
@@ -37,7 +38,7 @@ export class DweloLockAccessory implements AccessoryPlugin {
 
     this.batteryService = new api.hap.Service.Battery(name);
 
-    this.pollTimer = setInterval(() => this.poll(), this.lockPollMs);
+    this.sensorState.onUpdate(sensors => this.handleSensorSnapshot(sensors));
 
     log.info(`Dwelo Lock '${name}' created!`);
   }
@@ -51,7 +52,7 @@ export class DweloLockAccessory implements AccessoryPlugin {
   }
 
   private async getLockState() {
-    const sensors = await this.dweloAPI.sensors(this.lockID);
+    const sensors = await this.sensorState.readSensors();
     const state = this.toLockState(sensors);
     this.setBatteryLevel(sensors);
     this.log.debug(`Current state of the lock was returned: ${state}`);
@@ -91,7 +92,7 @@ export class DweloLockAccessory implements AccessoryPlugin {
   }
 
   private toLockState(sensors: Sensor[]) {
-    const lockSensor = sensors.find(s => s.sensorType === 'lock');
+    const lockSensor = sensors.find(sensor => sensor.sensorType.toLowerCase() === 'lock');
     if (!lockSensor) {
       return this.api.hap.Characteristic.LockCurrentState.UNKNOWN;
     }
@@ -101,12 +102,10 @@ export class DweloLockAccessory implements AccessoryPlugin {
   }
 
   private setBatteryLevel(sensors: Sensor[]) {
-    const batterySensor = sensors.find(s => s.sensorType === 'battery');
-    if (!batterySensor) {
+    const batteryLevel = Number(sensors.find(sensor => sensor.sensorType.toLowerCase() === 'battery')?.value);
+    if (!Number.isFinite(batteryLevel)) {
       return;
     }
-
-    const batteryLevel = parseInt(batterySensor.value, 10);
     const batteryStatus = batteryLevel > 20
       ? this.api.hap.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL
       : this.api.hap.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW;
@@ -128,40 +127,38 @@ export class DweloLockAccessory implements AccessoryPlugin {
     }
   }
 
-  private async poll() {
-    try {
-      const sensors = await this.dweloAPI.sensors(this.lockID);
-      const currentState = this.toLockState(sensors);
+  private handleSensorSnapshot(sensors: Sensor[]) {
+    this.setBatteryLevel(sensors);
+    if (!sensors.some(sensor => sensor.sensorType.toLowerCase() === 'lock')) {
+      return;
+    }
 
-      this.setBatteryLevel(sensors);
-      this.lockService.getCharacteristic(this.api.hap.Characteristic.LockCurrentState).updateValue(currentState);
+    const currentState = this.toLockState(sensors);
+    this.lockService.getCharacteristic(this.api.hap.Characteristic.LockCurrentState).updateValue(currentState);
 
-      // Maintain auto-lock timer based on current state
-      if (currentState === this.api.hap.Characteristic.LockCurrentState.UNSECURED) {
-        // Ensure timer is set if unlocked
-        if (!this.autoLockTimer) {
-          this.startAutoLockTimer();
-        }
-      } else if (currentState === this.api.hap.Characteristic.LockCurrentState.SECURED) {
-        this.cancelAutoLockTimer();
+    // Maintain auto-lock timer based on current state
+    if (currentState === this.api.hap.Characteristic.LockCurrentState.UNSECURED) {
+      // Ensure timer is set if unlocked
+      if (!this.autoLockTimer) {
+        this.startAutoLockTimer();
       }
+    } else if (currentState === this.api.hap.Characteristic.LockCurrentState.SECURED) {
+      this.cancelAutoLockTimer();
+    }
 
-      if (this.inFlight && this.desiredTarget !== null) {
-        const desiredState =
-          this.desiredTarget === this.api.hap.Characteristic.LockTargetState.SECURED
-            ? this.api.hap.Characteristic.LockCurrentState.SECURED
-            : this.api.hap.Characteristic.LockCurrentState.UNSECURED;
+    if (this.inFlight && this.desiredTarget !== null) {
+      const desiredState =
+        this.desiredTarget === this.api.hap.Characteristic.LockTargetState.SECURED
+          ? this.api.hap.Characteristic.LockCurrentState.SECURED
+          : this.api.hap.Characteristic.LockCurrentState.UNSECURED;
 
-        if (currentState === desiredState) {
-          this.inFlight = false;
-          if (this.watchdog) {
-            clearTimeout(this.watchdog);
-          }
-          this.log.info('Lock toggle completed');
+      if (currentState === desiredState) {
+        this.inFlight = false;
+        if (this.watchdog) {
+          clearTimeout(this.watchdog);
         }
+        this.log.info('Lock toggle completed');
       }
-    } catch (err) {
-      this.log.warn(`Failed to fetch status of lock ${this.name}: ${this.errorMessage(err)}`);
     }
   }
 

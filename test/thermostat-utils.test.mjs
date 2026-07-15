@@ -9,6 +9,7 @@ import {
   hasNumericSensorValue,
   relativeHumidityFromSensorValue,
   thermostatAutoSetpointsF,
+  thermostatOperatingStateFromSensors,
   sensorValue,
 } from '../dist/DweloThermostatAccessory.js';
 
@@ -70,4 +71,11 @@ test('keeps auto setpoints inside limits while preserving the minimum differenti
     heatSetpointF: 90,
     coolSetpointF: 95,
   });
+});
+
+test('maps Dwelo thermostat operating state sensors to semantic current state', () => {
+  assert.equal(thermostatOperatingStateFromSensors(new Map([['state', 'cooling']])), 'cool');
+  assert.equal(thermostatOperatingStateFromSensors(new Map([['ThermostatOperatingState'.toLowerCase(), 'pending heat']])), 'heat');
+  assert.equal(thermostatOperatingStateFromSensors(new Map([['state', 'idle']])), 'off');
+  assert.equal(thermostatOperatingStateFromSensors(new Map()), undefined);
 });
