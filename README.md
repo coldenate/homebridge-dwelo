@@ -181,6 +181,12 @@ Push updates are enabled by default so Apple Home receives state changes after e
 - `onGetStrategy` (`"cached-first"`, `"always-live"`, or `"cache-only"`): Advanced HomeKit read behavior. Default is `"cached-first"`, which returns recent cached state and fetches Dwelo only when needed. Use `"always-live"` to fetch Dwelo on every HomeKit read, or `"cache-only"` to rely only on background push polling.
 - `lockPollMs` (number): Deprecated backwards-compatible alias for `statePollMs` when `statePollMs` is not set.
 
+Community doors are opt-in because Dwelo provides an open command but no discovery or state endpoint:
+
+- `perimeterPanelId` (string): Panel ID sent with Dwelo community-door requests.
+- `perimeterDoors` (array): Doors to expose, each with a `name` and numeric Community Door `id`. The default is `[]`.
+- `perimeterDoorOpenSeconds` (number): Seconds to show a door as unlocked before assuming it relocked. Default is `10`.
+
 This plugin also supports Dwelo thermostats discovered from your configured gateway:
 
 - `thermostatDisplayUnits` (`"celsius"` or `"fahrenheit"`): HomeKit display unit for thermostats. Default is `"celsius"`.

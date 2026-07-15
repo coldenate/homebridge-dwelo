@@ -102,6 +102,40 @@
         "default": 3,
         "minimum": 0
       },
+      "perimeterPanelId": {
+        "title": "Community door panel ID",
+        "description": "Panel ID sent by Dwelo when opening a community door. Required only when community doors are configured.",
+        "type": "string"
+      },
+      "perimeterDoorOpenSeconds": {
+        "title": "Community door open time (seconds)",
+        "description": "How long Apple Home should show a community door as unlocked after a successful open request.",
+        "type": "number",
+        "default": 10,
+        "minimum": 1
+      },
+      "perimeterDoors": {
+        "title": "Community doors",
+        "description": "Only doors listed here are exposed to Apple Home. The ID is shown in the Dwelo website's Community Door ID tooltip.",
+        "type": "array",
+        "default": [],
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string",
+              "required": true
+            },
+            "id": {
+              "title": "Community Door ID",
+              "type": "integer",
+              "minimum": 1,
+              "required": true
+            }
+          }
+        }
+      },
       "thermostatDisplayUnits": {
         "title": "Thermostat display units",
         "type": "string",

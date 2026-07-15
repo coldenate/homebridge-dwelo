@@ -110,6 +110,16 @@ test('refreshes sensors when cached state is stale', async () => {
   assert.equal(api.calls, 1);
 });
 
+test('returns stale sensors when a refresh fails', async () => {
+  const api = reader(new Error('Dwelo unavailable'));
+  const state = new DweloDeviceState(1, api, -1);
+
+  state.updateSensors([sensor('switch', 'on')]);
+
+  assert.deepEqual(await state.readSensors(), [sensor('switch', 'on')]);
+  assert.equal(api.calls, 1);
+});
+
 test('gateway poll updates every device in one request and preserves state after failure', async () => {
   const calls = [];
   const api = {

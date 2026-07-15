@@ -39,7 +39,7 @@ export interface Sensor {
 }
 
 interface ListSensorsResponse extends ListResponse {
-  results: Sensor[];
+  results: Array<Omit<Sensor, 'value'> & { value: unknown }>;
 }
 
 export class DweloAPI {
@@ -64,7 +64,7 @@ export class DweloAPI {
         offset: 0,
       },
     });
-    return response.data.results;
+    return response.data.results.map(sensor => ({ ...sensor, value: String(sensor.value) }));
   }
 
   public async toggleSwitch(on: boolean, id: number) {
@@ -78,6 +78,13 @@ export class DweloAPI {
     await this.request(`/v3/device/${id}/command/`, {
       method: 'POST',
       data: { 'command': locked ? 'lock' : 'unlock' },
+    });
+  }
+
+  public async openPerimeterDoor(id: number, panelId: string) {
+    await this.request(`/v3/perimeter/door/${id}/open/`, {
+      method: 'POST',
+      data: { panelId },
     });
   }
 

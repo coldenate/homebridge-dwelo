@@ -9,6 +9,7 @@ import {
   shouldPollDeviceType,
 } from './DweloStatePoller.js';
 import { DweloLockAccessory } from './DweloLockAccessory.js';
+import { DweloPerimeterDoorAccessory } from './DweloPerimeterDoorAccessory.js';
 import { DweloSwitchAccessory } from './DweloSwitchAccessory.js';
 import {
   buildSensorMap,
@@ -84,8 +85,47 @@ export class HomebridgePluginDweloPlatform implements StaticPlatformPlugin {
           }
         }));
 
-      callback(accessories.filter((a): a is AccessoryPlugin => !!a));
+      callback([
+        ...accessories.filter((a): a is AccessoryPlugin => !!a),
+        ...this.perimeterDoorAccessories(),
+      ]);
       this.statePoller.start();
+    });
+  }
+
+  private perimeterDoorAccessories(): AccessoryPlugin[] {
+    if (!Array.isArray(this.config.perimeterDoors) || this.config.perimeterDoors.length === 0) {
+      return [];
+    }
+    if (typeof this.config.perimeterPanelId !== 'string' || !this.config.perimeterPanelId.trim()) {
+      this.log.warn('Community doors are configured but perimeterPanelId is missing; no community doors will be exposed.');
+      return [];
+    }
+
+    const openSeconds = typeof this.config.perimeterDoorOpenSeconds === 'number'
+      && Number.isFinite(this.config.perimeterDoorOpenSeconds)
+      && this.config.perimeterDoorOpenSeconds > 0
+      ? this.config.perimeterDoorOpenSeconds
+      : 10;
+
+    return this.config.perimeterDoors.flatMap((door: unknown) => {
+      if (!door || typeof door !== 'object') {
+        return [];
+      }
+      const { id, name } = door as { id?: unknown; name?: unknown };
+      if (!Number.isInteger(id) || (id as number) <= 0 || typeof name !== 'string' || !name.trim()) {
+        this.log.warn('Skipping invalid community door configuration. Each door needs a positive integer id and a name.');
+        return [];
+      }
+      return [new DweloPerimeterDoorAccessory(
+        this.log,
+        this.api,
+        this.dweloAPI,
+        name.trim(),
+        id as number,
+        this.config.perimeterPanelId.trim(),
+        openSeconds,
+      )];
     });
   }
 

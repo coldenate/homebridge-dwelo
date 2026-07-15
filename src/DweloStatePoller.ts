@@ -100,6 +100,12 @@ export class DweloDeviceState {
         this.updateSensors(sensors);
         return this.sensors!;
       })
+      .catch(error => {
+        if (this.sensors) {
+          return this.sensors;
+        }
+        throw error;
+      })
       .finally(() => {
         this.pendingRead = undefined;
       });
